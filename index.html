@@ -13,7 +13,6 @@
       body {
         font-family: "Inter", sans-serif;
       }
-      /* Custom styles for file input - Light & Black theme */
       .file-input-container {
         position: relative;
         overflow: hidden;
@@ -49,8 +48,6 @@
         height: 100%;
         cursor: pointer;
       }
-
-      /* Enhanced Loading Bar - Black/Dark Gray theme */
       #loadingIndicator {
         width: 100%;
         display: flex;
@@ -68,18 +65,16 @@
       .progress-bar-indeterminate {
         width: 100%;
         height: 100%;
-        /* Using shades of dark gray/black for the gradient */
         background: linear-gradient(
           to right,
           #374151 20%,
-          /* gray-700 */ #1f2937 50%,
-          /* gray-800 */ #374151 80% /* gray-700 */
+          #1f2937 50%,
+          #374151 80%
         );
         background-size: 200% 100%;
         animation: indeterminateAnimation 1.5s infinite linear;
         border-radius: 4px;
       }
-
       @keyframes indeterminateAnimation {
         0% {
           background-position: 200% 0;
@@ -88,7 +83,6 @@
           background-position: -200% 0;
         }
       }
-
       .status-text {
         font-size: 0.875rem; /* text-sm */
         color: #374151; /* gray-700 */
@@ -181,17 +175,15 @@
       const zipFileInput = document.getElementById("zipFile");
       const uploadButton = document.getElementById("uploadButton");
       const statusArea = document.getElementById("statusArea");
-      const loadingIndicator = document.getElementById("loadingIndicator"); // Used for the container of the message and bar
+      // const loadingIndicator = document.getElementById("loadingIndicator"); // Already part of statusArea logic
       const statusMessage = document.getElementById("statusMessage");
       const errorArea = document.getElementById("errorArea");
       const errorMessage = document.getElementById("errorMessage");
       const fileNameDisplay = document.getElementById("fileNameDisplay");
 
-      // Configure your backend API URL here
-      // IMPORTANT: Replace with your actual backend API endpoint
-      // CORRECTED TO HTTPS
-      const API_URL =
-        "https://tccc-lambda-2-cloudfunction-780614596615.us-central1.run.app/analyze-js-zip/";
+      // --- IMPORTANT: Configure your backend API URL here ---
+      // If your backend runs on a different host or port, update this URL.
+      const API_URL = "http://127.0.0.1:8000/analyze-js-zip/";
 
       // Event listener for file input changes
       zipFileInput.addEventListener("change", () => {
@@ -207,15 +199,12 @@
       uploadButton.addEventListener("click", handleUpload);
 
       /**
-       * Shows a status message and optionally the loading indicator.
+       * Shows a status message. The progress bar is part of the statusArea.
        * @param {string} message - The message to display.
-       * @param {boolean} showProgressBar - Whether to ensure the progress bar area is visible (it's always animated).
        */
-      function showStatus(message, showProgressBar = false) {
+      function showStatus(message) {
         statusArea.classList.remove("hidden");
         statusMessage.textContent = message;
-        // The progress bar is part of the loadingIndicator div which is shown/hidden with statusArea
-        // If specific control over the bar itself was needed, it would be handled here.
         hideError(); // Hide any error messages when showing a status
       }
 
@@ -280,22 +269,11 @@
           return;
         }
 
-        // Optional: Add a file size check (e.g., 50MB)
-        // const maxSizeInBytes = 50 * 1024 * 1024; // 50 MB
-        // if (file.size > maxSizeInBytes) {
-        //     showError(`File is too large. Maximum size is ${maxSizeInBytes / (1024*1024)}MB.`);
-        //     return;
-        // }
-
-        // Create FormData to send the file
         const formData = new FormData();
         formData.append("file", file); // 'file' must match the parameter name expected by the backend
 
         disableForm(); // Disable form while uploading
-        showStatus(
-          `Processing ${file.name}... This may take a few moments.`,
-          true // Indicate that the progress bar should be active/visible
-        );
+        showStatus(`Processing ${file.name}... This may take a few moments.`);
         uploadButton.textContent = "Analyzing..."; // Update button text
 
         try {
@@ -307,15 +285,11 @@
           });
 
           if (response.ok) {
-            // Check if the response is an Excel file for download
             const contentType = response.headers.get("content-type");
-            if (
-              contentType &&
-              contentType.includes(
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              )
-            ) {
-              showStatus("Analysis complete. Downloading report...", false);
+            // --- UPDATED SECTION TO HANDLE ZIP ---
+            if (contentType && contentType.includes("application/zip")) {
+              // Check for ZIP
+              showStatus("Analysis complete. Downloading ZIP archive..."); // Updated message
               const blob = await response.blob(); // Get the response body as a Blob
               const downloadUrl = window.URL.createObjectURL(blob); // Create a URL for the Blob
 
@@ -324,11 +298,11 @@
               a.style.display = "none";
               a.href = downloadUrl;
 
-              // Try to get filename from Content-Disposition header, otherwise generate one
-              let downloadFilename = `gemini_analysis_${file.name.replace(
-                /\.zip$/i, // Remove .zip extension case-insensitively
+              // Default filename for the ZIP, but prioritize Content-Disposition
+              let downloadFilename = `analysis_bundle_${file.name.replace(
+                /\.zip$/i,
                 ""
-              )}.xlsx`;
+              )}.zip`;
               const disposition = response.headers.get("content-disposition");
               if (disposition && disposition.indexOf("attachment") !== -1) {
                 const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
@@ -348,18 +322,18 @@
               setTimeout(() => {
                 hideStatus();
                 fileNameDisplay.textContent = ""; // Clear selected file name
-                zipFileInput.value = ""; // Reset file input to allow selecting the same file again if needed
+                zipFileInput.value = ""; // Reset file input
               }, 1000);
             } else {
-              // Handle cases where the server response is OK but not an Excel file (unexpected)
+              // Handle cases where the server response is OK but not a ZIP file (unexpected)
               const errorText = await response.text();
               showError(
-                `Unexpected response from server: ${errorText.substring(
-                  0,
-                  200 // Show a snippet of the unexpected response
-                )}`
+                `Unexpected response type from server. Expected a ZIP file, but received: ${
+                  contentType || "Unknown content type"
+                }. Server message: ${errorText.substring(0, 200)}`
               );
             }
+            // --- END OF UPDATED SECTION ---
           } else {
             // Handle HTTP errors (e.g., 4xx, 5xx)
             let errorDetail = `HTTP error ${response.status}: ${response.statusText}`;
@@ -372,7 +346,7 @@
             } catch (e) {
               // If response is not JSON, use the status text or raw text
               const rawErrorText = await response.text();
-              errorDetail = rawErrorText.substring(0, 200) || errorDetail;
+              errorDetail = rawErrorText.substring(0, 200) || errorDetail; // Show a snippet or the original error
               console.warn("Error response was not JSON:", rawErrorText);
             }
             showError(errorDetail);
@@ -381,7 +355,7 @@
           // Handle network errors or other issues with the fetch call
           console.error("Upload error:", error);
           showError(
-            "An error occurred during upload. Check the console or network connection."
+            "An error occurred during upload. Check the console, network connection, or ensure the backend server is running."
           );
         } finally {
           enableForm(); // Re-enable form elements regardless of outcome
