@@ -175,131 +175,111 @@
       const zipFileInput = document.getElementById("zipFile");
       const uploadButton = document.getElementById("uploadButton");
       const statusArea = document.getElementById("statusArea");
-      // const loadingIndicator = document.getElementById("loadingIndicator"); // Already part of statusArea logic
       const statusMessage = document.getElementById("statusMessage");
       const errorArea = document.getElementById("errorArea");
       const errorMessage = document.getElementById("errorMessage");
       const fileNameDisplay = document.getElementById("fileNameDisplay");
 
-      // --- IMPORTANT: Configure your backend API URL here ---
-      // If your backend runs on a different host or port, update this URL.
       const API_URL =
         "https://tccc-lambda-2-cloudfunction-780614596615.us-central1.run.app/analyze-js-zip/";
 
-      // Event listener for file input changes
+      // Helper function to create a delay
+      function delay(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
       zipFileInput.addEventListener("change", () => {
         if (zipFileInput.files.length > 0) {
           fileNameDisplay.textContent = `Selected: ${zipFileInput.files[0].name}`;
-          hideError(); // Hide any previous error if a new file is selected
+          hideError();
         } else {
-          fileNameDisplay.textContent = ""; // Clear display if no file is selected
+          fileNameDisplay.textContent = "";
         }
       });
 
-      // Event listener for the upload button click
       uploadButton.addEventListener("click", handleUpload);
 
-      /**
-       * Shows a status message. The progress bar is part of the statusArea.
-       * @param {string} message - The message to display.
-       */
       function showStatus(message) {
         statusArea.classList.remove("hidden");
         statusMessage.textContent = message;
-        hideError(); // Hide any error messages when showing a status
+        hideError();
       }
 
-      /**
-       * Hides the status message and loading indicator.
-       */
       function hideStatus() {
         statusArea.classList.add("hidden");
         statusMessage.textContent = "";
       }
 
-      /**
-       * Shows an error message.
-       * @param {string} message - The error message to display.
-       */
       function showError(message) {
         errorArea.classList.remove("hidden");
         errorMessage.textContent = message;
-        hideStatus(); // Hide any status messages when showing an error
+        hideStatus();
       }
 
-      /**
-       * Hides the error message area.
-       */
       function hideError() {
         errorArea.classList.add("hidden");
         errorMessage.textContent = "";
       }
 
-      /**
-       * Enables the form elements (button and file input).
-       */
       function enableForm() {
         uploadButton.disabled = false;
         uploadButton.textContent = "Analyze Project";
         zipFileInput.disabled = false;
       }
 
-      /**
-       * Disables the form elements to prevent multiple submissions.
-       */
       function disableForm() {
         uploadButton.disabled = true;
         zipFileInput.disabled = true;
       }
 
-      /**
-       * Handles the file upload process.
-       */
       async function handleUpload() {
         const file = zipFileInput.files[0];
 
-        // Validate if a file is selected
         if (!file) {
           showError("Please select a ZIP file to upload.");
           return;
         }
 
-        // Validate if the file is a ZIP file
         if (!file.name.endsWith(".zip")) {
           showError("Invalid file type. Only .ZIP files are allowed.");
           return;
         }
 
         const formData = new FormData();
-        formData.append("file", file); // 'file' must match the parameter name expected by the backend
+        formData.append("file", file);
 
-        disableForm(); // Disable form while uploading
-        showStatus(`Processing ${file.name}... This may take a few moments.`);
-        uploadButton.textContent = "Analyzing..."; // Update button text
+        disableForm();
+
+        // --- 1. Uploading phase ---
+        showStatus(`Uploading ${file.name}...`);
+        uploadButton.textContent = "Uploading...";
+        await delay(5000); // Wait for 5 seconds
+
+        // --- 2. Analyzing phase ---
+        showStatus(`Analyzing ${file.name}... This may take a few moments.`);
+        uploadButton.textContent = "Analyzing...";
 
         try {
-          // Make the API call
           const response = await fetch(API_URL, {
             method: "POST",
             body: formData,
-            // Headers like 'Content-Type: multipart/form-data' are automatically set by fetch for FormData
           });
 
           if (response.ok) {
             const contentType = response.headers.get("content-type");
-            // --- UPDATED SECTION TO HANDLE ZIP ---
             if (contentType && contentType.includes("application/zip")) {
-              // Check for ZIP
-              showStatus("Analysis complete. Downloading ZIP archive..."); // Updated message
-              const blob = await response.blob(); // Get the response body as a Blob
-              const downloadUrl = window.URL.createObjectURL(blob); // Create a URL for the Blob
+              // --- 3. Downloading phase ---
+              showStatus("Analysis complete. Preparing your download...");
+              uploadButton.textContent = "Downloading...";
+              await delay(2000); // Wait for 2 seconds
 
-              // Create a temporary anchor element to trigger the download
+              showStatus("Downloading analysis results..."); // Update status before actual download starts
+              const blob = await response.blob();
+              const downloadUrl = window.URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.style.display = "none";
               a.href = downloadUrl;
 
-              // Default filename for the ZIP, but prioritize Content-Disposition
               let downloadFilename = `analysis_bundle_${file.name.replace(
                 /\.zip$/i,
                 ""
@@ -309,24 +289,21 @@
                 const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
                 const matches = filenameRegex.exec(disposition);
                 if (matches != null && matches[1]) {
-                  downloadFilename = matches[1].replace(/['"]/g, ""); // Clean quotes from filename
+                  downloadFilename = matches[1].replace(/['"]/g, "");
                 }
               }
-              a.download = downloadFilename; // Set the download filename
-
+              a.download = downloadFilename;
               document.body.appendChild(a);
-              a.click(); // Trigger the download
-              window.URL.revokeObjectURL(downloadUrl); // Clean up the object URL
-              a.remove(); // Remove the temporary anchor
+              a.click();
+              window.URL.revokeObjectURL(downloadUrl);
+              a.remove();
 
-              // Reset UI after a short delay to allow download to start
               setTimeout(() => {
                 hideStatus();
-                fileNameDisplay.textContent = ""; // Clear selected file name
+                fileNameDisplay.textContent = "";
                 zipFileInput.value = ""; // Reset file input
-              }, 1000);
+              }, 1000); // UI reset after download initiated
             } else {
-              // Handle cases where the server response is OK but not a ZIP file (unexpected)
               const errorText = await response.text();
               showError(
                 `Unexpected response type from server. Expected a ZIP file, but received: ${
@@ -334,26 +311,21 @@
                 }. Server message: ${errorText.substring(0, 200)}`
               );
             }
-            // --- END OF UPDATED SECTION ---
           } else {
-            // Handle HTTP errors (e.g., 4xx, 5xx)
             let errorDetail = `HTTP error ${response.status}: ${response.statusText}`;
             try {
-              // Try to parse error details if the server sends JSON
               const errorJson = await response.json();
               if (errorJson && errorJson.detail) {
                 errorDetail = errorJson.detail;
               }
             } catch (e) {
-              // If response is not JSON, use the status text or raw text
               const rawErrorText = await response.text();
-              errorDetail = rawErrorText.substring(0, 200) || errorDetail; // Show a snippet or the original error
+              errorDetail = rawErrorText.substring(0, 200) || errorDetail;
               console.warn("Error response was not JSON:", rawErrorText);
             }
             showError(errorDetail);
           }
         } catch (error) {
-          // Handle network errors or other issues with the fetch call
           console.error("Upload error:", error);
           showError(
             "An error occurred during upload. Check the console, network connection, or ensure the backend server is running."
