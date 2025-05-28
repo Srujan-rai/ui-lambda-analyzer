@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JS Code Migration Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      /* Custom styles for file input - Light & Black theme */
+      .file-input-container {
+        position: relative;
+        overflow: hidden;
+        display: inline-block;
+      }
+      .file-input-styled {
+        border: 2px dashed #d1d5db; /* gray-300 */
+        border-radius: 0.5rem; /* rounded-lg */
+        padding: 2.5rem 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        background-color: #f9fafb; /* gray-50 */
+        transition: border-color 0.3s ease, background-color 0.3s ease;
+      }
+      .file-input-styled:hover {
+        border-color: #000000; /* black */
+        background-color: #f3f4f6; /* gray-100 */
+      }
+      .file-input-styled span {
+        display: block;
+        font-size: 0.875rem; /* text-sm */
+        color: #4b5563; /* gray-600 */
+      }
+      .file-input-styled strong {
+        color: #000000; /* black */
+      }
+      input[type="file"]#zipFile {
+        position: absolute;
+        left: 0;
+        top: 0;
+        opacity: 0;
+        width: 100%;
+        height: 100%;
+        cursor: pointer;
+      }
+
+      /* Enhanced Loading Bar - Black/Dark Gray theme */
+      #loadingIndicator {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .progress-bar-container {
+        width: 80%;
+        height: 8px;
+        background-color: #e5e7eb; /* gray-200 */
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 0.75rem; /* mt-3 */
+      }
+      .progress-bar-indeterminate {
+        width: 100%;
+        height: 100%;
+        /* Using shades of dark gray/black for the gradient */
+        background: linear-gradient(
+          to right,
+          #374151 20%,
+          /* gray-700 */ #1f2937 50%,
+          /* gray-800 */ #374151 80% /* gray-700 */
+        );
+        background-size: 200% 100%;
+        animation: indeterminateAnimation 1.5s infinite linear;
+        border-radius: 4px;
+      }
+
+      @keyframes indeterminateAnimation {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
+
+      .status-text {
+        font-size: 0.875rem; /* text-sm */
+        color: #374151; /* gray-700 */
+        margin-top: 0.5rem; /* mt-2 */
+      }
+    </style>
+  </head>
+  <body
+    class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-4"
+  >
+    <div
+      class="bg-white shadow-xl rounded-lg p-6 md:p-10 w-full max-w-md transform transition-all duration-500"
+    >
+      <header class="text-center mb-8">
+        <img
+          src="./Niveus-ntt-data.png"
+          alt="Niveus NTT DATA Logo"
+          class="mx-auto h-12 mb-6"
+        />
+        <h1 class="text-2xl font-semibold text-gray-700">Migration Analyzer</h1>
+        <p class="text-gray-500 mt-2 text-sm">
+          Upload a ZIP file of your project for analysis.
+        </p>
+      </header>
+
+      <main>
+        <div class="mb-6">
+          <label for="zipFile" class="file-input-container w-full block">
+            <div class="file-input-styled">
+              <svg
+                class="mx-auto h-10 w-10 text-gray-400"
+                stroke="currentColor"
+                fill="none"
+                viewBox="0 0 48 48"
+                aria-hidden="true"
+              >
+                <path
+                  d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span class="mt-2"
+                ><strong>Click to upload</strong> or drag and drop</span
+              >
+              <span class="text-xs text-gray-500"
+                >ZIP files only, max 50MB</span
+              >
+              <span
+                id="fileNameDisplay"
+                class="mt-1 text-sm font-medium text-gray-700"
+              ></span>
+            </div>
+            <input type="file" id="zipFile" accept=".zip" class="opacity-0" />
+          </label>
+        </div>
+
+        <button
+          id="uploadButton"
+          class="w-full bg-black hover:bg-gray-800 text-white font-medium py-2.5 px-4 rounded-md shadow-sm transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Analyze Project
+        </button>
+
+        <div id="statusArea" class="mt-6 text-center hidden">
+          <div id="loadingIndicator">
+            <p id="statusMessage" class="status-text"></p>
+            <div class="progress-bar-container mt-2">
+              <div class="progress-bar-indeterminate"></div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="errorArea"
+          class="mt-4 p-3 bg-red-100 text-red-700 border border-red-300 rounded-md hidden"
+        >
+          <p id="errorMessage" class="text-sm"></p>
+        </div>
+      </main>
+
+      <footer class="text-center mt-10 text-xs text-gray-400">
+        <p>&copy; 2025 Niveus Solutions Part of NTT data.</p>
+      </footer>
+    </div>
+
+    <script>
+      // Get references to DOM elements
+      const zipFileInput = document.getElementById("zipFile");
+      const uploadButton = document.getElementById("uploadButton");
+      const statusArea = document.getElementById("statusArea");
+      const loadingIndicator = document.getElementById("loadingIndicator"); // Used for the container of the message and bar
+      const statusMessage = document.getElementById("statusMessage");
+      const errorArea = document.getElementById("errorArea");
+      const errorMessage = document.getElementById("errorMessage");
+      const fileNameDisplay = document.getElementById("fileNameDisplay");
+
+      // Configure your backend API URL here
+      // IMPORTANT: Replace with your actual backend API endpoint
+      const API_URL =
+        "https://tccc-lambda-2-cloudfunction-780614596615.us-central1.run.app/analyze-js-zip";
+
+      // Event listener for file input changes
+      zipFileInput.addEventListener("change", () => {
+        if (zipFileInput.files.length > 0) {
+          fileNameDisplay.textContent = `Selected: ${zipFileInput.files[0].name}`;
+          hideError(); // Hide any previous error if a new file is selected
+        } else {
+          fileNameDisplay.textContent = ""; // Clear display if no file is selected
+        }
+      });
+
+      // Event listener for the upload button click
+      uploadButton.addEventListener("click", handleUpload);
+
+      /**
+       * Shows a status message and optionally the loading indicator.
+       * @param {string} message - The message to display.
+       * @param {boolean} showProgressBar - Whether to ensure the progress bar area is visible (it's always animated).
+       */
+      function showStatus(message, showProgressBar = false) {
+        statusArea.classList.remove("hidden");
+        statusMessage.textContent = message;
+        // The progress bar is part of the loadingIndicator div which is shown/hidden with statusArea
+        // If specific control over the bar itself was needed, it would be handled here.
+        hideError(); // Hide any error messages when showing a status
+      }
+
+      /**
+       * Hides the status message and loading indicator.
+       */
+      function hideStatus() {
+        statusArea.classList.add("hidden");
+        statusMessage.textContent = "";
+      }
+
+      /**
+       * Shows an error message.
+       * @param {string} message - The error message to display.
+       */
+      function showError(message) {
+        errorArea.classList.remove("hidden");
+        errorMessage.textContent = message;
+        hideStatus(); // Hide any status messages when showing an error
+      }
+
+      /**
+       * Hides the error message area.
+       */
+      function hideError() {
+        errorArea.classList.add("hidden");
+        errorMessage.textContent = "";
+      }
+
+      /**
+       * Enables the form elements (button and file input).
+       */
+      function enableForm() {
+        uploadButton.disabled = false;
+        uploadButton.textContent = "Analyze Project";
+        zipFileInput.disabled = false;
+      }
+
+      /**
+       * Disables the form elements to prevent multiple submissions.
+       */
+      function disableForm() {
+        uploadButton.disabled = true;
+        zipFileInput.disabled = true;
+      }
+
+      /**
+       * Handles the file upload process.
+       */
+      async function handleUpload() {
+        const file = zipFileInput.files[0];
+
+        // Validate if a file is selected
+        if (!file) {
+          showError("Please select a ZIP file to upload.");
+          return;
+        }
+
+        // Validate if the file is a ZIP file
+        if (!file.name.endsWith(".zip")) {
+          showError("Invalid file type. Only .ZIP files are allowed.");
+          return;
+        }
+
+        // Optional: Add a file size check (e.g., 50MB)
+        // const maxSizeInBytes = 50 * 1024 * 1024; // 50 MB
+        // if (file.size > maxSizeInBytes) {
+        //     showError(`File is too large. Maximum size is ${maxSizeInBytes / (1024*1024)}MB.`);
+        //     return;
+        // }
+
+        // Create FormData to send the file
+        const formData = new FormData();
+        formData.append("file", file); // 'file' must match the parameter name expected by the backend
+
+        disableForm(); // Disable form while uploading
+        showStatus(
+          `Processing ${file.name}... This may take a few moments.`,
+          true // Indicate that the progress bar should be active/visible
+        );
+        uploadButton.textContent = "Analyzing..."; // Update button text
+
+        try {
+          // Make the API call
+          const response = await fetch(API_URL, {
+            method: "POST",
+            body: formData,
+            // Headers like 'Content-Type: multipart/form-data' are automatically set by fetch for FormData
+          });
+
+          if (response.ok) {
+            // Check if the response is an Excel file for download
+            const contentType = response.headers.get("content-type");
+            if (
+              contentType &&
+              contentType.includes(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              )
+            ) {
+              showStatus("Analysis complete. Downloading report...", false);
+              const blob = await response.blob(); // Get the response body as a Blob
+              const downloadUrl = window.URL.createObjectURL(blob); // Create a URL for the Blob
+
+              // Create a temporary anchor element to trigger the download
+              const a = document.createElement("a");
+              a.style.display = "none";
+              a.href = downloadUrl;
+
+              // Try to get filename from Content-Disposition header, otherwise generate one
+              let downloadFilename = `gemini_analysis_${file.name.replace(
+                /\.zip$/i, // Remove .zip extension case-insensitively
+                ""
+              )}.xlsx`;
+              const disposition = response.headers.get("content-disposition");
+              if (disposition && disposition.indexOf("attachment") !== -1) {
+                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                const matches = filenameRegex.exec(disposition);
+                if (matches != null && matches[1]) {
+                  downloadFilename = matches[1].replace(/['"]/g, ""); // Clean quotes from filename
+                }
+              }
+              a.download = downloadFilename; // Set the download filename
+
+              document.body.appendChild(a);
+              a.click(); // Trigger the download
+              window.URL.revokeObjectURL(downloadUrl); // Clean up the object URL
+              a.remove(); // Remove the temporary anchor
+
+              // Reset UI after a short delay to allow download to start
+              setTimeout(() => {
+                hideStatus();
+                fileNameDisplay.textContent = ""; // Clear selected file name
+                zipFileInput.value = ""; // Reset file input to allow selecting the same file again if needed
+              }, 1000);
+            } else {
+              // Handle cases where the server response is OK but not an Excel file (unexpected)
+              const errorText = await response.text();
+              showError(
+                `Unexpected response from server: ${errorText.substring(
+                  0,
+                  200 // Show a snippet of the unexpected response
+                )}`
+              );
+            }
+          } else {
+            // Handle HTTP errors (e.g., 4xx, 5xx)
+            let errorDetail = `HTTP error ${response.status}: ${response.statusText}`;
+            try {
+              // Try to parse error details if the server sends JSON
+              const errorJson = await response.json();
+              if (errorJson && errorJson.detail) {
+                errorDetail = errorJson.detail;
+              }
+            } catch (e) {
+              // If response is not JSON, use the status text or raw text
+              const rawErrorText = await response.text();
+              errorDetail = rawErrorText.substring(0, 200) || errorDetail;
+              console.warn("Error response was not JSON:", rawErrorText);
+            }
+            showError(errorDetail);
+          }
+        } catch (error) {
+          // Handle network errors or other issues with the fetch call
+          console.error("Upload error:", error);
+          showError(
+            "An error occurred during upload. Check the console or network connection."
+          );
+        } finally {
+          enableForm(); // Re-enable form elements regardless of outcome
+        }
+      }
+    </script>
+  </body>
+</html>
